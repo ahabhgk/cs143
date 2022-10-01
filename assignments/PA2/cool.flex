@@ -49,7 +49,33 @@ extern YYSTYPE cool_yylval;
  * Define names for regular expressions here.
  */
 
-DARROW          =>
+CLASS [Cc][Ll][Aa][Ss][Ss]
+ELSE [Ee][Ll][Ss][Ee]
+FI [Ff][Ii]
+IF [Ii][Ff]
+IN [Ii][Nn]
+INHERITS [Ii][Nn][Hh][Ee][Rr][Ii][Tt][Ss]
+ISVOID [Ii][Ss][Vv][Oo][Ii][Dd]
+LET [Ll][Ee][Tt]
+LOOP [Ll][Oo][Oo][Pp]
+POOL [Pp][Oo][Oo][Ll]
+THEN [Tt][Hh][Ee][Nn]
+WHILE [Ww][Hh][Ii][Ll][Ee]
+CASE [Cc][Aa][Ss][Ee]
+ESAC [Ee][Ss][Aa][Cc]
+NEW [Nn][Ee][Ww]
+OF [Oo][Ff]
+NOT [Nn][Oo][Tt]
+TRUE t[Rr][Uu][Ee]
+FALSE f[Aa][Ll][Ss][Ee]
+DIGIT [0-9]
+
+/*
+ * Define states.
+ */
+
+%x COMMENT
+  int comments_layer = 0;
 
 %%
 
@@ -57,17 +83,114 @@ DARROW          =>
   *  Nested comments
   */
 
+"(*" {
+  BEGIN(COMMENT);
+  comments_layer++;
+}
+<COMMENT>{
+  "*)" {
+    comments_layer--;
+    if (comments_layer == 0) {
+      BEGIN(INITIAL);
+    }
+  }
+  <<EOF>> {
+    cool_yylval.error_msg = "EOF in comments";
+    BEGIN(INITIAL);
+    return ERROR;
+  }
+  \n { curr_lineno++; }
+  . { }
+}
+"*)" {
+  cool_yylval.error_msg = "Unmatched *)";
+  return ERROR;
+}
+
+ /*
+  * Single line comment
+  */
+
+"--".* { }
+
 
  /*
   *  The multiple-character operators.
   */
-{DARROW}		{ return (DARROW); }
+
+"=>" { return DARROW; }
+"<-" { return ASSIGN; }
+"<=" { return LE; }
+"<" { return int('<'); }
+"+" { return int('+'); }
+"-" { return int('-'); }
+"*" { return int('*'); }
+"/" { return int('/'); }
+"=" { return int('='); }
+"{" { return int('{'); }
+"}" { return int('}'); }
+":" { return int(':'); }
+";" { return int(';'); }
+"(" { return int('('); }
+")" { return int(')'); }
+"," { return int(','); }
+"." { return int('.'); }
+"~" { return int('~'); }
+"@" { return int('@'); }
 
  /*
   * Keywords are case-insensitive except for the values true and false,
   * which must begin with a lower-case letter.
+  * 
+  * class, else, fi, if, in, inherits, isvoid, let, loop, pool,
+  * then, while, case, esac, new, of, not, true, false
   */
 
+{CLASS} { return CLASS; }
+{ELSE} { return ELSE; }
+{FI} { return FI; }
+{IF} { return IF; }
+{IN} { return IN; }
+{INHERITS} { return INHERITS; }
+{ISVOID} { return ISVOID; }
+{LET} { return LET; }
+{LOOP} { return LOOP; }
+{POOL} { return POOL; }
+{THEN} { return THEN; }
+{WHILE} { return WHILE; }
+{CASE} { return CASE; }
+{ESAC} { return ESAC; }
+{NEW} { return NEW; }
+{OF} { return OF; }
+{NOT} { return NOT; }
+
+ /* BOOL_CONST */
+{TRUE} {
+  cool_yylval.boolean = 1;
+  return BOOL_CONST;
+}
+{FALSE} {
+  cool_yylval.boolean = 0;
+  return BOOL_CONST;
+}
+
+ /* INT_CONST */
+{DIGIT}+ {
+  cool_yylval.symbol = inttable.add_string(yytext);
+  return INT_CONST;
+}
+
+ /* TYPEID */
+[A-Z][A-Za-z0-9_]* {
+  cool_yylval.symbol = idtable.add_string(yytext);
+  return TYPEID;
+}
+
+ /* OBJECTID */
+[a-z][A-Za-z0-9_]* {
+  cool_yylval.symbol = idtable.add_string(yytext);
+  return OBJECTID;
+}
 
  /*
   *  String constants (C syntax)
@@ -76,5 +199,18 @@ DARROW          =>
   *
   */
 
+ /* Lines */
+"\n" {
+  curr_lineno++;
+}
+
+ /* White Space */
+[ \f\r\t\v]+ { }
+
+ /* . {
+  *   cool_yylval.error_msg = yytext;
+  *   return ERROR;
+  * }
+  */
 
 %%

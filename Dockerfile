@@ -2,6 +2,7 @@ FROM ubuntu:latest
 
 ENV DEBIAN_FRONTEND noninteractive
 
+RUN echo 'deb-src http://archive.ubuntu.com/ubuntu trusty-backports main restricted universe multiverse' >> /etc/apt/sources.list
 RUN sed -i 's/archive.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' \
     /etc/apt/sources.list
 
@@ -11,7 +12,7 @@ RUN apt-get update
 RUN apt-get upgrade -y
 
 # Install essentials
-RUN apt-get install -y git flex bison build-essential wget vim libc6:i386 openjdk-17-jre libxaw7-dev
+RUN apt-get install -y git flex-old bison build-essential wget vim libc6:i386
 
 # Install coolc compiler
 WORKDIR /usr/class/cs143/cool
