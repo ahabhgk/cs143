@@ -43,6 +43,8 @@ extern YYSTYPE cool_yylval;
  *  Add Your own definitions here
  */
 
+int comments_layer = 0;
+
 %}
 
 /*
@@ -75,7 +77,7 @@ DIGIT [0-9]
  */
 
 %x COMMENT
-  int comments_layer = 0;
+%x STRING
 
 %%
 
@@ -83,7 +85,7 @@ DIGIT [0-9]
   *  Nested comments
   */
 
-"(*" {
+<INITIAL>"(*" {
   BEGIN(COMMENT);
   comments_layer++;
 }
@@ -107,12 +109,9 @@ DIGIT [0-9]
   return ERROR;
 }
 
- /*
-  * Single line comment
-  */
+ /* Single line comment */
 
 "--".* { }
-
 
  /*
   *  The multiple-character operators.
@@ -199,6 +198,85 @@ DIGIT [0-9]
   *
   */
 
+<INITIAL>\" {
+  BEGIN(STRING);
+  yymore();
+}
+<STRING>[^\\\"\n]* {
+  yymore();
+}
+<STRING>\\[^\n] { yymore(); }
+<STRING>\\\n {
+  curr_lineno++;
+  yymore();
+}
+<STRING><<EOF>> {
+  yylval.error_msg = "EOF in string constant";
+  BEGIN(INITIAL);
+  yyrestart(yyin);
+  return ERROR;
+}
+<STRING>\n {
+  yylval.error_msg = "Unterminated string constant";
+  BEGIN(INITIAL);
+  curr_lineno++;
+  return ERROR;
+}
+<STRING>\\0 {
+  yylval.error_msg = "Unterminated string constant";
+  BEGIN(INITIAL);
+  return ERROR;
+}
+<STRING>\" {
+  std::string input(yytext, yyleng);
+  input = input.substr(1, input.length() - 2);
+
+  std::string output = "";
+  std::string::size_type pos;
+
+  if (input.find_first_of('\0') != std::string::npos) {
+    yylval.error_msg = "String contains null character";
+    BEGIN 0;
+    return ERROR;    
+  }
+
+  while ((pos = input.find_first_of("\\")) != std::string::npos) {
+    output += input.substr(0, pos);
+
+    switch (input[pos + 1]) {
+    case 'b':
+      output += "\b";
+      break;
+    case 't':
+      output += "\t";
+      break;
+    case 'n':
+      output += "\n";
+      break;
+    case 'f':
+      output += "\f";
+      break;
+    default:
+      output += input[pos + 1];
+      break;
+    }
+
+    input = input.substr(pos + 2, input.length() - 2);
+  }
+
+  output += input;
+
+  if (output.length() > 1024) {
+    yylval.error_msg = "String constant too long";
+    BEGIN(INITIAL);
+    return ERROR;    
+  }
+
+  cool_yylval.symbol = stringtable.add_string((char*)output.c_str());
+  BEGIN(INITIAL);
+  return STR_CONST;
+}
+
  /* Lines */
 "\n" {
   curr_lineno++;
@@ -207,10 +285,9 @@ DIGIT [0-9]
  /* White Space */
 [ \f\r\t\v]+ { }
 
- /* . {
-  *   cool_yylval.error_msg = yytext;
-  *   return ERROR;
-  * }
-  */
+. {
+  cool_yylval.error_msg = yytext;
+  return ERROR;
+}
 
 %%
